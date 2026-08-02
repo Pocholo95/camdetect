@@ -22,19 +22,16 @@ def main():
         return
 
     ids = [p[0] for p in pending]
-    embeddings = np.stack([p[1] for p in pending])
-
-    # Normalizamos para que la distancia euclidiana equivalga a distancia
-    # coseno (asi podemos usar DBSCAN estandar con metric='euclidean' sobre
-    # vectores normalizados, mas estable numericamente que metric='cosine').
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    norms[norms == 0] = 1e-9
-    normalized = embeddings / norms
+    embeddings = np.stack([p[1] for p in pending]).astype(np.float64)
 
     eps = cfg["clustering"]["eps"]
     min_samples = cfg["clustering"]["min_samples"]
 
-    clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="euclidean").fit(normalized)
+    # metric='cosine' calcula directamente 1 - similitud_coseno (misma
+    # escala que pending.dedupe_min_distance y notify.unknown_notify_distance
+    # en el resto del sistema), sin necesidad de normalizar a mano.
+    # eps=0.35 agrupa rostros con similitud coseno aproximada >= 0.65.
+    clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="cosine").fit(embeddings)
     labels = clustering.labels_  # -1 = ruido (no forma cluster con nadie)
 
     label_to_cluster_id = {}
