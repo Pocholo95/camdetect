@@ -36,8 +36,8 @@
     <tr>
       <td>{{ l.name }}</td>
       <td><span class="badge {{ 'known' if l.is_known else 'unknown' }}">{{ 'conocido' if l.is_known else 'desconocido' }}</span></td>
-      <td>{{ l.first_seen[:19] }}</td>
-      <td>{{ l.last_seen[:19] }}</td>
+      <td>{{ l.first_seen | local_time }}</td>
+      <td>{{ l.last_seen | local_time }}</td>
       <td>{{ l.n_frames }}</td>
       <td>{{ '%.2f'|format(l.best_score) if l.best_score else '-' }}</td>
     </tr>
