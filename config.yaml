@@ -41,7 +41,15 @@ notify:
   known_cooldown_sec: 300
   unknown_cooldown_sec: 300
   send_photo: true
-  unknown_notify_distance: 0.40
+  # Distancia coseno (1 - similitud) por debajo de la cual un desconocido se
+  # considera "el mismo que ya notifique hace poco". OJO: es una distancia,
+  # no una similitud, asi que tiene que ser ~ (1 - matching.known_threshold)
+  # para ser consistente con el criterio de "misma persona" del resto del
+  # sistema. Si lo dejas mas bajo que eso (mas estricto que known_threshold),
+  # con fotos ruidosas/borrosas la similitud real entre frames consecutivos
+  # de la misma persona no llega al umbral y termina mandando una notificacion
+  # nueva por cada frame.
+  unknown_notify_distance: 0.60
 
 paths:
   data_dir: "data"
@@ -52,8 +60,12 @@ paths:
 
 clustering:
   # DBSCAN sobre distancia coseno. eps = distancia maxima para considerar
-  # que dos rostros pertenecen al mismo cluster (misma persona).
-  eps: 0.30
+  # que dos rostros pertenecen al mismo cluster (misma persona). Debe ser
+  # consistente con matching.known_threshold (~ 1 - known_threshold): si
+  # queda mas estricto que eso, la variacion normal entre fotos (mas todavia
+  # si son chicas/borrosas) hace que DBSCAN nunca agrupe nada, todo queda
+  # como "ruido" y la webUI de revision aparece vacia siempre.
+  eps: 0.60
   min_samples: 2
 
 flask:

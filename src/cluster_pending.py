@@ -30,7 +30,9 @@ def main():
     # metric='cosine' calcula directamente 1 - similitud_coseno (misma
     # escala que pending.dedupe_min_distance y notify.unknown_notify_distance
     # en el resto del sistema), sin necesidad de normalizar a mano.
-    # eps=0.35 agrupa rostros con similitud coseno aproximada >= 0.65.
+    # eps se define en config.yaml (clustering.eps) y debe quedar consistente
+    # con matching.known_threshold; si queda mas estricto, DBSCAN no agrupa
+    # nada y la webUI de revision no muestra ningun cluster.
     clustering = DBSCAN(eps=eps, min_samples=min_samples, metric="cosine").fit(embeddings)
     labels = clustering.labels_  # -1 = ruido (no forma cluster con nadie)
 

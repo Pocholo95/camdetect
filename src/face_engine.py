@@ -38,15 +38,31 @@ class FaceEngine:
         feature = self.recognizer.feature(aligned)
         return feature.flatten()
 
-    def crop_face(self, frame: np.ndarray, face_row: np.ndarray, margin: float = 0.3) -> np.ndarray:
+    def crop_face(
+        self,
+        frame: np.ndarray,
+        face_row: np.ndarray,
+        margin: float = 0.3,
+        min_size: int = 240,
+    ) -> np.ndarray:
         """Recorte simple (sin alinear) con margen, para guardar como
-        snapshot legible por un humano."""
+        snapshot legible por un humano. Si el recorte queda mas chico que
+        min_size (camaras/streams de baja resolucion), lo agranda con
+        interpolacion cubica: no agrega detalle real, pero evita mandar a
+        Telegram o mostrar en la webUI una miniatura minuscula."""
         x, y, w, h = face_row[:4].astype(int)
         mx, my = int(w * margin), int(h * margin)
         H, W = frame.shape[:2]
         x0, y0 = max(0, x - mx), max(0, y - my)
         x1, y1 = min(W, x + w + mx), min(H, y + h + my)
-        return frame[y0:y1, x0:x1].copy()
+        crop = frame[y0:y1, x0:x1].copy()
+
+        crop_h, crop_w = crop.shape[:2]
+        largest_side = max(crop_h, crop_w)
+        if largest_side > 0 and largest_side < min_size:
+            scale = min(min_size / largest_side, 4.0)  # tope para no inventar detalle
+            crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        return crop
 
     @staticmethod
     def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:

@@ -53,9 +53,10 @@ def main():
     dedupe_min_distance = cfg["pending"]["dedupe_min_distance"]
     recent_buffer_size = cfg["pending"]["recent_buffer_size"]
     # Umbral de distancia para decidir si un desconocido "ya fue notificado
-    # hace poco" o es alguien distinto. Reusa el mismo criterio del dedupe
-    # del pool de pendientes, se puede separar en config.yaml si hace falta.
-    unknown_notify_distance = cfg["notify"].get("unknown_notify_distance", 0.40)
+    # hace poco" o es alguien distinto. Si no esta en config.yaml, se deriva
+    # de known_threshold para ser consistente con el resto del sistema (ver
+    # comentario en config.yaml sobre notify.unknown_notify_distance).
+    unknown_notify_distance = cfg["notify"].get("unknown_notify_distance", 1.0 - known_threshold)
 
     def cooldown_ok(key, cooldown_sec):
         now = time.time()
