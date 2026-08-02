@@ -42,11 +42,19 @@ def main():
         time.sleep(0.5)
     print("[pipeline] stream activo, arrancando deteccion")
 
-    last_notified = {}  # nombre_o_'desconocido' -> timestamp ultimo aviso
+last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
+    # Para desconocidos no alcanza con una clave fija: serian todos "la misma
+    # persona" para el cooldown. Guardamos (embedding, timestamp) de cada
+    # desconocido notificado recientemente y comparamos por similitud.
+    recent_unknown_notified = []  # [(embedding, timestamp), ...]
+
     frame_interval = cfg["processing"]["frame_interval_sec"]
     known_threshold = cfg["matching"]["known_threshold"]
     dedupe_min_distance = cfg["pending"]["dedupe_min_distance"]
     recent_buffer_size = cfg["pending"]["recent_buffer_size"]
+    unknown_notify_distance = cfg["pending"].get(
+        "unknown_notify_distance", dedupe_min_distance
+    )
 
     def cooldown_ok(key, cooldown_sec):
         now = time.time()
@@ -55,6 +63,19 @@ def main():
             last_notified[key] = now
             return True
         return False
+
+    def unknown_cooldown_ok(embedding, cooldown_sec):
+        nonlocal recent_unknown_notified
+        now = time.time()
+        recent_unknown_notified = [
+            (emb, ts) for emb, ts in recent_unknown_notified if now - ts < cooldown_sec
+        ]
+        for emb, _ts in recent_unknown_notified:
+            sim = FaceEngine.cosine_similarity(embedding, emb)
+            if (1.0 - sim) < unknown_notify_distance:
+                return False
+        recent_unknown_notified.append((embedding, now))
+        return True
 
     while True:
         loop_start = time.time()
