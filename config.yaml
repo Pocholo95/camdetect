@@ -41,6 +41,7 @@ notify:
   known_cooldown_sec: 300
   unknown_cooldown_sec: 300
   send_photo: true
+  unknown_notify_distance: 0.40
 
 paths:
   data_dir: "data"
