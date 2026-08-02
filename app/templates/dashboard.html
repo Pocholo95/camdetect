@@ -17,7 +17,7 @@
     <tr>
       <td>{{ p.name }}</td>
       <td><span class="badge {{ 'known' if p.is_known else 'unknown' }}">{{ 'conocido' if p.is_known else 'desconocido' }}</span></td>
-      <td>{{ p.last_seen }}</td>
+      <td>{{ p.last_seen | local_time('%H:%M:%S') }}</td>
       <td>{{ p.n_frames }}</td>
     </tr>
     {% endfor %}
@@ -36,8 +36,8 @@
     <tr>
       <td>{{ r.name }}</td>
       <td><span class="badge {{ 'known' if r.is_known else 'unknown' }}">{{ 'conocido' if r.is_known else 'desconocido' }}</span></td>
-      <td>{{ r.first_seen }}</td>
-      <td>{{ r.last_seen }}</td>
+      <td>{{ r.first_seen | local_time }}</td>
+      <td>{{ r.last_seen | local_time }}</td>
       <td>{{ r.n_frames }}</td>
       <td>{{ '%.2f'|format(r.best_score) if r.best_score else '-' }}</td>
     </tr>
