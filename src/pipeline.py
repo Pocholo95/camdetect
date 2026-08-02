@@ -42,7 +42,7 @@ def main():
         time.sleep(0.5)
     print("[pipeline] stream activo, arrancando deteccion")
 
-last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
+    last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
     # Para desconocidos no alcanza con una clave fija: serian todos "la misma
     # persona" para el cooldown. Guardamos (embedding, timestamp) de cada
     # desconocido notificado recientemente y comparamos por similitud.
@@ -52,6 +52,9 @@ last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
     known_threshold = cfg["matching"]["known_threshold"]
     dedupe_min_distance = cfg["pending"]["dedupe_min_distance"]
     recent_buffer_size = cfg["pending"]["recent_buffer_size"]
+    # Umbral de distancia para decidir si un desconocido "ya fue notificado
+    # hace poco" o es alguien distinto. Reusa el mismo criterio del dedupe
+    # del pool de pendientes, se puede separar en config.yaml si hace falta.
     unknown_notify_distance = cfg["pending"].get(
         "unknown_notify_distance", dedupe_min_distance
     )
@@ -65,15 +68,19 @@ last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
         return False
 
     def unknown_cooldown_ok(embedding, cooldown_sec):
+        """True si este rostro desconocido NO fue notificado hace menos de
+        cooldown_sec (comparando por similitud de embedding, no por una
+        clave global)."""
         nonlocal recent_unknown_notified
         now = time.time()
+        # Purga entradas vencidas
         recent_unknown_notified = [
             (emb, ts) for emb, ts in recent_unknown_notified if now - ts < cooldown_sec
         ]
         for emb, _ts in recent_unknown_notified:
             sim = FaceEngine.cosine_similarity(embedding, emb)
             if (1.0 - sim) < unknown_notify_distance:
-                return False
+                return False  # ya se notifico a alguien muy parecido hace poco
         recent_unknown_notified.append((embedding, now))
         return True
 
@@ -115,7 +122,7 @@ last_notified = {}  # nombre_conocido -> timestamp ultimo aviso
                     db.add_pending_face(embedding, crop_path)
                     recent_pending.append(embedding)  # para no comparar contra si mismo en este mismo frame
 
-                if cooldown_ok("desconocido", cfg["notify"]["unknown_cooldown_sec"]):
+                if unknown_cooldown_ok(embedding, cfg["notify"]["unknown_cooldown_sec"]):
                     crop = engine.crop_face(frame, face_row)
                     snap_path = os.path.join(
                         cfg["paths"]["snapshots_dir"], f"desconocido_{int(time.time())}.jpg"
