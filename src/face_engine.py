@@ -65,8 +65,16 @@ class FaceEngine:
             nms_threshold=det_cfg["nms_threshold"],
             top_k=5000,
         )
+        # intra_op_num_threads explicito: si no se fija, onnxruntime intenta
+        # anclar sus hilos a nucleos de CPU especificos (sched_setaffinity),
+        # lo que falla con "Invalid argument" dentro de contenedores LXC/
+        # Docker sin privilegios donde el set de CPUs visible no se puede
+        # afinar. Fijarlo a mano evita ese codepath (y de paso limita cuantos
+        # hilos usa, importante en un LXC con pocos nucleos).
+        sess_options = ort.SessionOptions()
+        sess_options.intra_op_num_threads = int(det_cfg.get("onnx_threads", 2))
         self.session = ort.InferenceSession(
-            det_cfg["edgeface_model"], providers=["CPUExecutionProvider"]
+            det_cfg["edgeface_model"], sess_options=sess_options, providers=["CPUExecutionProvider"]
         )
         self._input_name = self.session.get_inputs()[0].name
         self._size = (det_cfg["input_width"], det_cfg["input_height"])
