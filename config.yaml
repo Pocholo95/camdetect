@@ -1,0 +1,62 @@
+rtsp:
+  url: "rtsp://usuario:password@192.168.1.50:554/stream1"
+  reconnect_delay_sec: 5
+
+processing:
+  # Cada cuantos segundos se procesa un frame. No hace falta procesar todos
+  # los frames del stream, con 1 cada 1-2 segundos alcanza para detectar
+  # personas caminando por el encuadre.
+  frame_interval_sec: 1.0
+
+detection:
+  yunet_model: "models/face_detection_yunet_2023mar.onnx"
+  sface_model: "models/face_recognition_sface_2021dec.onnx"
+  score_threshold: 0.8
+  nms_threshold: 0.3
+  # Tamano al que se re-escala el frame para detectar (mas chico = mas rapido)
+  input_width: 640
+  input_height: 480
+
+matching:
+  # Similitud coseno minima para considerar que un rostro es una persona
+  # conocida. 0.363 es el umbral de referencia del modelo SFace de OpenCV.
+  # Subilo (ej 0.45-0.5) si te da falsos positivos, bajalo si no reconoce
+  # bien a la gente.
+  known_threshold: 0.40
+
+pending:
+  # Distancia coseno minima respecto a los ultimos rostros desconocidos ya
+  # guardados para aceptar un nuevo crop en el pool de pendientes. Evita
+  # guardar 30 fotos casi identicas de la misma persona parada frente a
+  # camara.
+  dedupe_min_distance: 0.25
+  # Cuantos embeddings recientes se comparan para el dedupe (buffer en RAM)
+  recent_buffer_size: 60
+
+notify:
+  telegram_bot_token: "REEMPLAZAR_CON_TU_TOKEN"
+  telegram_chat_id: "REEMPLAZAR_CON_TU_CHAT_ID"
+  # Minutos entre notificaciones repetidas de la misma persona / de
+  # "desconocido" para no saturar Telegram.
+  known_cooldown_sec: 300
+  unknown_cooldown_sec: 300
+  send_photo: true
+
+paths:
+  data_dir: "data"
+  db_path: "data/camdetect.db"
+  pending_crops_dir: "data/crops/pending"
+  known_crops_dir: "data/crops/known"
+  snapshots_dir: "data/snapshots"
+
+clustering:
+  # DBSCAN sobre distancia coseno. eps = distancia maxima para considerar
+  # que dos rostros pertenecen al mismo cluster (misma persona).
+  eps: 0.30
+  min_samples: 2
+
+flask:
+  host: "0.0.0.0"
+  port: 5000
+  # Poné True solo si de verdad necesitas debug, no lo dejes en produccion
+  debug: false

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Cluster #{{ cluster_id }} - camdetect</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:#111; color:#eee; margin:0; padding:24px; }
+    a.back { color:#3b82f6; text-decoration:none; font-size:14px; }
+    h1 { font-size:20px; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; margin:20px 0; }
+    .grid img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:#333; }
+    form.label-form { display:flex; gap:8px; margin-top:20px; }
+    input[type=text] { flex:1; padding:10px; border-radius:6px; border:1px solid #333; background:#1b1b1b; color:#eee; font-size:14px; }
+    button { padding:10px 16px; border-radius:6px; border:none; font-size:14px; cursor:pointer; }
+    button.save { background:#22c55e; color:#052e16; font-weight:600; }
+    button.discard { background:#ef4444; color:#450a0a; font-weight:600; }
+    .actions { display:flex; gap:8px; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <a class="back" href="{{ url_for('index') }}">&larr; volver</a>
+  <h1>Cluster #{{ cluster_id }} — {{ thumbnails|length }} fotos</h1>
+
+  <div class="grid">
+    {% for t in thumbnails %}
+      <img src="{{ url_for('serve_crop', filename=t) }}">
+    {% endfor %}
+  </div>
+
+  <form class="label-form" action="{{ url_for('label_cluster', cluster_id=cluster_id) }}" method="post">
+    <input type="text" name="name" placeholder="Nombre de la persona" required>
+    <button class="save" type="submit">Guardar como conocido</button>
+  </form>
+
+  <form class="actions" action="{{ url_for('discard_cluster', cluster_id=cluster_id) }}" method="post">
+    <button class="discard" type="submit">Descartar (no me interesa)</button>
+  </form>
+</body>
+</html>

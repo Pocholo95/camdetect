@@ -1,0 +1,114 @@
+"""Loop principal: toma frames de la camara, detecta rostros, los compara
+contra la base de conocidos y notifica por Telegram. Los rostros que no
+matchean con nadie se guardan (con dedupe) en el pool de 'pendientes' para
+clasificar despues con cluster_pending.py + la app de revision."""
+import os
+import time
+import uuid
+import cv2
+
+from config import load_config
+from db import Database
+from face_engine import FaceEngine
+from capture import RTSPStream
+from telegram_notify import TelegramNotifier
+
+
+def is_far_from_recent(embedding, recent_embeddings, min_distance):
+    """True si el embedding es 'distinto' a todos los recientes (distancia
+    coseno = 1 - similitud). Sirve para no guardar 40 fotos casi iguales
+    del mismo desconocido parado frente a camara."""
+    for other in recent_embeddings:
+        sim = FaceEngine.cosine_similarity(embedding, other)
+        distance = 1.0 - sim
+        if distance < min_distance:
+            return False
+    return True
+
+
+def main():
+    cfg = load_config()
+    db = Database(cfg["paths"]["db_path"])
+    engine = FaceEngine(cfg)
+    notifier = TelegramNotifier(
+        cfg["notify"]["telegram_bot_token"],
+        cfg["notify"]["telegram_chat_id"],
+        send_photo=cfg["notify"]["send_photo"],
+    )
+
+    stream = RTSPStream(cfg["rtsp"]["url"], cfg["rtsp"]["reconnect_delay_sec"]).start()
+    print("[pipeline] esperando primer frame de la camara...")
+    while stream.read() is None:
+        time.sleep(0.5)
+    print("[pipeline] stream activo, arrancando deteccion")
+
+    last_notified = {}  # nombre_o_'desconocido' -> timestamp ultimo aviso
+    frame_interval = cfg["processing"]["frame_interval_sec"]
+    known_threshold = cfg["matching"]["known_threshold"]
+    dedupe_min_distance = cfg["pending"]["dedupe_min_distance"]
+    recent_buffer_size = cfg["pending"]["recent_buffer_size"]
+
+    def cooldown_ok(key, cooldown_sec):
+        now = time.time()
+        last = last_notified.get(key, 0)
+        if now - last >= cooldown_sec:
+            last_notified[key] = now
+            return True
+        return False
+
+    while True:
+        loop_start = time.time()
+        frame = stream.read()
+        if frame is None:
+            time.sleep(0.2)
+            continue
+
+        known_faces = db.get_all_known_faces()
+        recent_pending = db.get_recent_pending_embeddings(recent_buffer_size)
+
+        detections = engine.detect(frame)
+        for face_row in detections:
+            embedding = engine.embed(frame, face_row)
+            name, sim = engine.match_known(embedding, known_faces, known_threshold)
+
+            if name is not None:
+                # Persona conocida
+                if cooldown_ok(name, cfg["notify"]["known_cooldown_sec"]):
+                    crop = engine.crop_face(frame, face_row)
+                    snap_path = os.path.join(
+                        cfg["paths"]["snapshots_dir"], f"{name}_{int(time.time())}.jpg"
+                    )
+                    cv2.imwrite(snap_path, crop)
+                    db.add_event(name, sim, snap_path)
+                    hora = time.strftime("%Y-%m-%d %H:%M:%S")
+                    caption = f"Persona detectada: {name}\nHora: {hora}\nConfianza: {sim:.2f}"
+                    notifier.send_photo(snap_path, caption)
+                    print(f"[pipeline] {hora} - conocido: {name} ({sim:.2f})")
+            else:
+                # Desconocido: revisar si vale la pena guardarlo (dedupe)
+                if is_far_from_recent(embedding, recent_pending, dedupe_min_distance):
+                    crop = engine.crop_face(frame, face_row)
+                    crop_name = f"{uuid.uuid4().hex}.jpg"
+                    crop_path = os.path.join(cfg["paths"]["pending_crops_dir"], crop_name)
+                    cv2.imwrite(crop_path, crop)
+                    db.add_pending_face(embedding, crop_path)
+                    recent_pending.append(embedding)  # para no comparar contra si mismo en este mismo frame
+
+                if cooldown_ok("desconocido", cfg["notify"]["unknown_cooldown_sec"]):
+                    crop = engine.crop_face(frame, face_row)
+                    snap_path = os.path.join(
+                        cfg["paths"]["snapshots_dir"], f"desconocido_{int(time.time())}.jpg"
+                    )
+                    cv2.imwrite(snap_path, crop)
+                    db.add_event("desconocido", sim, snap_path)
+                    hora = time.strftime("%Y-%m-%d %H:%M:%S")
+                    caption = f"Persona desconocida detectada\nHora: {hora}"
+                    notifier.send_photo(snap_path, caption)
+                    print(f"[pipeline] {hora} - desconocido (mejor sim: {sim:.2f})")
+
+        elapsed = time.time() - loop_start
+        time.sleep(max(0.0, frame_interval - elapsed))
+
+
+if __name__ == "__main__":
+    main()

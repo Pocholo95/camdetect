@@ -1,0 +1,16 @@
+[Unit]
+Description=camdetect - pipeline de deteccion facial
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=camdetect
+WorkingDirectory=/opt/camdetect
+Environment=PYTHONPATH=/opt/camdetect/src
+ExecStart=/opt/camdetect/venv/bin/python /opt/camdetect/src/pipeline.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
