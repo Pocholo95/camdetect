@@ -32,6 +32,20 @@ def record_sighting(conn, cluster_id: int, embedding, face_crop_path: str,
     )
 
 
+def delete_cluster(conn, cluster_id: int) -> None:
+    """Borra un cluster de desconocido por completo: imagenes + fila de persona
+    (cascada a embeddings/unknown_sightings)."""
+    sightings = db.cluster_embeddings(conn, cluster_id)
+    for s in sightings:
+        for path in (s["face_crop"], s["full_frame"]):
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
+    db.delete_person(conn, cluster_id)
+
+
 def cleanup_stale_clusters(conn, media_dir: str) -> int:
     """Borra clusters desconocidos sin revisar mas antiguos que UNKNOWN_RETENTION_DAYS."""
     cutoff = (
