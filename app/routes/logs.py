@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import HTMLResponse
@@ -35,7 +36,8 @@ async def logs_view(
             "best_score": r["best_score"],
             "snapshot": r["snapshot"],
         })
-        by_day[r["first_seen"][:10]] += 1
+        local_day = datetime.fromisoformat(r["first_seen"]).astimezone().strftime("%Y-%m-%d")
+        by_day[local_day] += 1
 
     timeline = sorted(by_day.items(), reverse=True)
     persons = db.list_persons(conn)
