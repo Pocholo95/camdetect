@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name }} - Face Presence{% endblock %}
+{% block content %}
+<h1>{{ person.name }}</h1>
+
+<div class="card">
+  <h2>Notificaciones</h2>
+  <form method="post" action="/people/{{ person.id }}/notify" class="row">
+    <label><input type="checkbox" name="notify" value="true" {{ 'checked' if person.notify }}> Notificar cuando se detecte</label>
+    <button type="submit">Guardar</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Capturar desde el stream en vivo</h2>
+  <p style="color: var(--muted); font-size: 13px;">
+    Captura 5-10 fotos. Recuerda capturar tambien de noche (IR / blanco y negro):
+    los embeddings diurnos e IR se guardan por separado porque son muy distintos.
+  </p>
+  <img src="/stream.mjpg" style="max-width: 480px; border-radius: 8px;">
+  <div class="row" style="margin-top: 10px;">
+    <label style="margin: 0;">Condicion:
+      <select id="condition">
+        <option value="day">Dia</option>
+        <option value="night_ir">Noche / IR</option>
+      </select>
+    </label>
+    <button onclick="capturePhoto()">Capturar foto</button>
+    <span id="captureCount" style="color: var(--muted)">0 capturadas</span>
+  </div>
+  <div id="captureResult" style="margin-top: 8px; font-size: 13px;"></div>
+</div>
+
+<div class="card">
+  <h2>Subir fotos</h2>
+  <form id="uploadForm" class="row">
+    <select name="condition" id="uploadCondition">
+      <option value="day">Dia</option>
+      <option value="night_ir">Noche / IR</option>
+    </select>
+    <input type="file" id="uploadFile" accept="image/*" multiple>
+    <button type="submit">Subir</button>
+  </form>
+  <div id="uploadResult" style="margin-top: 8px; font-size: 13px;"></div>
+</div>
+
+<div class="card">
+  <h2>Muestras guardadas ({{ embeddings|length }})</h2>
+  <table>
+    <tr><th>ID</th><th>Condicion</th><th>Origen</th><th>Fecha</th><th></th></tr>
+    {% for e in embeddings %}
+    <tr>
+      <td>{{ e.id }}</td>
+      <td>{{ e.condition or '-' }}</td>
+      <td>{{ e.source or '-' }}</td>
+      <td>{{ e.created_at[:19] }}</td>
+      <td>
+        <form method="post" action="/embeddings/{{ e.id }}/delete" style="display:inline;">
+          <input type="hidden" name="person_id" value="{{ person.id }}">
+          <button type="submit" class="danger">Borrar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+
+<form method="post" action="/people/{{ person.id }}/delete" onsubmit="return confirm('Borrar esta persona y todas sus muestras?');">
+  <button type="submit" class="danger">Borrar persona</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let captureCount = 0;
+
+  async function capturePhoto() {
+    const condition = document.getElementById('condition').value;
+    const form = new FormData();
+    form.append('condition', condition);
+    const resp = await fetch('/people/{{ person.id }}/capture', { method: 'POST', body: form });
+    const data = await resp.json();
+    const resultEl = document.getElementById('captureResult');
+    if (data.ok) {
+      captureCount++;
+      document.getElementById('captureCount').textContent = captureCount + ' capturadas';
+      resultEl.innerHTML = `<span class="quality-good">OK - calidad ${data.quality.toFixed(2)}</span>`;
+    } else {
+      resultEl.innerHTML = `<span class="quality-bad">${data.message}</span>`;
+    }
+  }
+
+  document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const condition = document.getElementById('uploadCondition').value;
+    const files = document.getElementById('uploadFile').files;
+    const resultEl = document.getElementById('uploadResult');
+    resultEl.innerHTML = '';
+    for (const file of files) {
+      const form = new FormData();
+      form.append('condition', condition);
+      form.append('file', file);
+      const resp = await fetch('/people/{{ person.id }}/upload', { method: 'POST', body: form });
+      const data = await resp.json();
+      const line = document.createElement('div');
+      line.className = data.ok ? 'quality-good' : 'quality-bad';
+      line.textContent = `${file.name}: ${data.ok ? 'OK calidad ' + data.quality.toFixed(2) : data.message}`;
+      resultEl.appendChild(line);
+    }
+    setTimeout(() => location.reload(), 1200);
+  });
+</script>
+{% endblock %}

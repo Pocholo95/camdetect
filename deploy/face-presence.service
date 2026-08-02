@@ -1,0 +1,26 @@
+[Unit]
+Description=Face Presence - reconocimiento facial domestico
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=face-presence
+Group=face-presence
+WorkingDirectory=/opt/face-presence
+EnvironmentFile=/opt/face-presence/.env
+Environment=ORT_NUM_THREADS=2
+ExecStart=/opt/face-presence/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Endurecimiento basico (ajustar si el servicio necesita mas permisos)
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/face-presence/data
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

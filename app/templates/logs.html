@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Historial - Face Presence{% endblock %}
+{% block content %}
+<h1>Historial de presencia</h1>
+
+<div class="card">
+  <form method="get" action="/logs" class="row">
+    <select name="person_id">
+      <option value="">Todas las personas</option>
+      {% for p in persons %}
+      <option value="{{ p.id }}" {{ 'selected' if filter_person_id == p.id }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <label style="margin: 0;">Desde <input type="date" name="date_from" value="{{ filter_date_from }}"></label>
+    <label style="margin: 0;">Hasta <input type="date" name="date_to" value="{{ filter_date_to }}"></label>
+    <button type="submit">Filtrar</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Linea de tiempo por dia</h2>
+  {% for day, count in timeline %}
+  <div class="row" style="margin: 4px 0;">
+    <span style="width: 100px; color: var(--muted); font-size: 13px;">{{ day }}</span>
+    <div style="background: var(--accent); height: 10px; width: {{ (count * 12) }}px; border-radius: 4px;"></div>
+    <span style="font-size: 12px; color: var(--muted);">{{ count }}</span>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <h2>Registros ({{ logs|length }})</h2>
+  <table>
+    <tr><th>Nombre</th><th>Tipo</th><th>Primera vez</th><th>Ultima vez</th><th>Frames</th><th>Score</th></tr>
+    {% for l in logs %}
+    <tr>
+      <td>{{ l.name }}</td>
+      <td><span class="badge {{ 'known' if l.is_known else 'unknown' }}">{{ 'conocido' if l.is_known else 'desconocido' }}</span></td>
+      <td>{{ l.first_seen[:19] }}</td>
+      <td>{{ l.last_seen[:19] }}</td>
+      <td>{{ l.n_frames }}</td>
+      <td>{{ '%.2f'|format(l.best_score) if l.best_score else '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

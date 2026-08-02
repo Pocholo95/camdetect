@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Personas - Face Presence{% endblock %}
+{% block content %}
+<h1>Personas</h1>
+
+<div class="card">
+  <h2>Nueva persona</h2>
+  <form method="post" action="/people/new" class="row">
+    <input type="text" name="name" placeholder="Nombre" required>
+    <button type="submit">Crear</button>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Registradas</h2>
+  <table>
+    <tr><th>Nombre</th><th>Muestras</th><th>Notificar</th><th></th></tr>
+    {% for p in persons %}
+    <tr>
+      <td><a href="/people/{{ p.row.id }}" style="color: var(--accent)">{{ p.row.name }}</a></td>
+      <td>{{ p.n_embeddings }}</td>
+      <td>{{ 'si' if p.row.notify else 'no' }}</td>
+      <td><a href="/people/{{ p.row.id }}">Editar</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

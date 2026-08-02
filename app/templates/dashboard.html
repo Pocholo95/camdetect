@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Face Presence{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="card stream-box">
+  <h2>Stream en vivo</h2>
+  <img src="/stream.mjpg" alt="stream">
+</div>
+
+<div class="card">
+  <h2>Presentes ahora</h2>
+  {% if present %}
+  <table>
+    <tr><th>Nombre</th><th>Tipo</th><th>Ultima vez</th><th>Frames</th></tr>
+    {% for p in present %}
+    <tr>
+      <td>{{ p.name }}</td>
+      <td><span class="badge {{ 'known' if p.is_known else 'unknown' }}">{{ 'conocido' if p.is_known else 'desconocido' }}</span></td>
+      <td>{{ p.last_seen }}</td>
+      <td>{{ p.n_frames }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style="color: var(--muted)">Nadie detectado en este momento.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h2>Ultimas 20 detecciones</h2>
+  {% if recent %}
+  <table>
+    <tr><th>Nombre</th><th>Tipo</th><th>Primera vez</th><th>Ultima vez</th><th>Frames</th><th>Score</th></tr>
+    {% for r in recent %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td><span class="badge {{ 'known' if r.is_known else 'unknown' }}">{{ 'conocido' if r.is_known else 'desconocido' }}</span></td>
+      <td>{{ r.first_seen }}</td>
+      <td>{{ r.last_seen }}</td>
+      <td>{{ r.n_frames }}</td>
+      <td>{{ '%.2f'|format(r.best_score) if r.best_score else '-' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p style="color: var(--muted)">Sin detecciones todavia.</p>
+  {% endif %}
+</div>
+{% endblock %}

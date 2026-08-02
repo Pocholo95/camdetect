@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Face Presence{% endblock %}</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <nav>
+    <a href="/" class="{{ 'active' if active == 'dashboard' else '' }}">Dashboard</a>
+    <a href="/people" class="{{ 'active' if active == 'people' else '' }}">Personas</a>
+    <a href="/unknowns" class="{{ 'active' if active == 'unknowns' else '' }}">Desconocidos</a>
+    <a href="/logs" class="{{ 'active' if active == 'logs' else '' }}">Historial</a>
+    <a href="/settings" class="{{ 'active' if active == 'settings' else '' }}">Ajustes</a>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <div class="toast" id="toast"></div>
+  <script>
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'block';
+      setTimeout(() => t.style.display = 'none', 3000);
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
