@@ -1,11 +1,12 @@
 # camdetect
 
 Detector de personas por rostro (sin servicios de IA en la nube, todo local
-y en CPU) que notifica por Telegram. Usa OpenCV puro:
+y en CPU) que notifica por Telegram. Usa
 [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet)
-para detectar rostros y [SFace](https://github.com/opencv/opencv_zoo/tree/main/models/face_recognition_sface)
-para generar los embeddings — ambos son modelos livianos incluidos en
-`opencv-contrib-python`, sin dependencias de GPU ni llamadas externas.
+(via `opencv-contrib-python`) para detectar rostros y
+[EdgeFace](https://github.com/otroshi/edgeface) (variante XS gamma-06, via
+ONNX Runtime) para generar los embeddings — ambos modelos livianos pensados
+para CPU, sin dependencias de GPU ni llamadas externas.
 
 ## Cómo funciona
 
@@ -37,7 +38,7 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-bash download_models.sh   # baja YuNet y SFace a models/
+bash download_models.sh   # baja YuNet y EdgeFace a models/
 ```
 
 Editá `config.yaml`:
@@ -72,6 +73,29 @@ Ver logs:
 journalctl -u camdetect-pipeline -f
 journalctl -u camdetect-review -f
 ```
+
+## Migrar de un modelo de embeddings a otro
+
+Si ya tenías `camdetect` corriendo (ej. con SFace) y actualizás el código a
+una versión que cambia el modelo de reconocimiento (ej. a EdgeFace), los
+embeddings guardados en la base quedan en un espacio vectorial distinto y
+ya no son comparables — hay que recalcularlos, si no vas a tener matches
+raros o gente conocida que deja de reconocerse.
+
+```bash
+systemctl stop camdetect-pipeline camdetect-review   # para que no escriba mientras migrás
+bash download_models.sh                              # baja el modelo nuevo
+python src/migrate_embeddings.py
+systemctl start camdetect-pipeline camdetect-review
+```
+
+El script recalcula los embeddings de `known_faces` y `pending_faces` a
+partir de las fotos ya guardadas en disco (no hace falta re-enrolar a
+mano). Si a alguien no se le puede recalcular (falta el archivo o ya no se
+detecta un rostro adentro), se descarta y el script te dice a quién hay que
+reenrolar. Los clusters pendientes sin revisar quedan reseteados — corré
+`cluster_pending.py` de nuevo cuando quieras volver a ver la webUI de
+revisión.
 
 ## Uso del día a día
 
@@ -110,17 +134,18 @@ camdetect/
 ├── config.yaml
 ├── download_models.sh
 ├── requirements.txt
-├── models/                  # YuNet + SFace (.onnx), se descargan aparte
+├── models/                  # YuNet + EdgeFace (.onnx), se descargan aparte
 ├── src/
 │   ├── config.py
 │   ├── db.py                 # SQLite: known_faces, pending_faces, clusters, events
-│   ├── face_engine.py        # YuNet + SFace wrapper
+│   ├── face_engine.py        # YuNet (deteccion) + EdgeFace (embeddings) wrapper
 │   ├── capture.py            # lector RTSP en hilo separado
 │   ├── telegram_notify.py
 │   ├── pipeline.py           # loop principal
 │   ├── cluster_pending.py    # DBSCAN sobre pendientes
 │   ├── review_app.py         # Flask: etiquetar/descartar clusters
-│   └── enroll.py             # enroll manual opcional desde fotos
+│   ├── enroll.py             # enroll manual opcional desde fotos
+│   └── migrate_embeddings.py # recalcula embeddings tras cambiar de modelo
 ├── templates/                # HTML de la review app
 ├── systemd/                  # units para pipeline, review app y timer de clustering
 └── data/                     # DB sqlite, crops, snapshots (se crea solo)

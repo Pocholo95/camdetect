@@ -1,9 +1,57 @@
-"""Wrapper sobre los modelos nativos de OpenCV: YuNet (deteccion) y SFace
-(embeddings). Ambos corren en CPU sin dependencias externas mas alla de
-opencv-contrib-python.
+"""Wrapper sobre YuNet (deteccion, via cv2.FaceDetectorYN) y EdgeFace
+(embeddings, via ONNX Runtime). Ambos corren en CPU.
+
+EdgeFace no tiene wrapper nativo en OpenCV como SFace (cv2.FaceRecognizerSF),
+asi que la alineacion de 5 puntos y el preprocesamiento se hacen a mano:
+- Alineacion: transformacion de similitud (Umeyama) de los 5 landmarks de
+  YuNet contra la plantilla ArcFace de referencia en 112x112, mismo orden
+  (ojo derecho, ojo izquierdo, nariz, comisura derecha, comisura izquierda)
+  que ya usa YuNet.
+- Preprocesamiento: BGR->RGB, (pixel - 127.5) / 127.5, NCHW.
+- Embedding de salida: 512-D, normalizado L2 antes de comparar.
 """
 import cv2
 import numpy as np
+import onnxruntime as ort
+
+# Plantilla ArcFace de referencia en 112x112. El orden de los 5 puntos tiene
+# que coincidir con el orden en que YuNet devuelve sus landmarks (ver
+# detect()): ojo derecho, ojo izquierdo, nariz, comisura derecha, comisura
+# izquierda. Es la misma plantilla estandar que usan insightface/ArcFace.
+REFERENCE_5PT = np.array(
+    [
+        [38.2946, 51.6963],
+        [73.5318, 51.5014],
+        [56.0252, 71.7366],
+        [41.5493, 92.3655],
+        [70.7299, 92.2041],
+    ],
+    dtype=np.float64,
+)
+
+
+def _similarity_transform(src: np.ndarray, dst: np.ndarray) -> np.ndarray:
+    """Estima la transformacion de similitud (rotacion+escala+traslacion)
+    que mejor mapea src -> dst (algoritmo de Umeyama). Devuelve una matriz
+    2x3 lista para cv2.warpAffine."""
+    n, dim = src.shape
+    src_mean = src.mean(axis=0)
+    dst_mean = dst.mean(axis=0)
+    src_c = src - src_mean
+    dst_c = dst - dst_mean
+    cov = (dst_c.T @ src_c) / n
+    U, S, Vt = np.linalg.svd(cov)
+    d = np.ones(dim)
+    if np.linalg.det(U) * np.linalg.det(Vt) < 0:
+        d[-1] = -1
+    R = U @ np.diag(d) @ Vt
+    var_src = (src_c ** 2).sum() / n
+    scale = (S * d).sum() / var_src if var_src > 0 else 1.0
+    t = dst_mean - scale * R @ src_mean
+    M = np.zeros((2, 3), dtype=np.float64)
+    M[:2, :2] = scale * R
+    M[:, 2] = t
+    return M
 
 
 class FaceEngine:
@@ -17,7 +65,10 @@ class FaceEngine:
             nms_threshold=det_cfg["nms_threshold"],
             top_k=5000,
         )
-        self.recognizer = cv2.FaceRecognizerSF.create(det_cfg["sface_model"], "")
+        self.session = ort.InferenceSession(
+            det_cfg["edgeface_model"], providers=["CPUExecutionProvider"]
+        )
+        self._input_name = self.session.get_inputs()[0].name
         self._size = (det_cfg["input_width"], det_cfg["input_height"])
 
     def detect(self, frame: np.ndarray):
@@ -32,11 +83,27 @@ class FaceEngine:
             return []
         return faces
 
+    def align_face(self, frame: np.ndarray, face_row: np.ndarray, image_size: int = 112) -> np.ndarray:
+        """Alinea el rostro a 112x112 usando los 5 landmarks de YuNet contra
+        la plantilla ArcFace de referencia."""
+        landmarks = face_row[4:14].reshape(5, 2).astype(np.float64)
+        M = _similarity_transform(landmarks, REFERENCE_5PT)
+        return cv2.warpAffine(frame, M, (image_size, image_size), borderValue=0.0)
+
     def embed(self, frame: np.ndarray, face_row: np.ndarray) -> np.ndarray:
-        """Alinea y recorta el rostro, y devuelve su embedding (vector)."""
-        aligned = self.recognizer.alignCrop(frame, face_row)
-        feature = self.recognizer.feature(aligned)
-        return feature.flatten()
+        """Alinea el rostro y devuelve su embedding (vector 512-D, normalizado L2)."""
+        aligned = self.align_face(frame, face_row)
+        blob = cv2.dnn.blobFromImage(
+            aligned,
+            scalefactor=1.0 / 127.5,
+            size=(112, 112),
+            mean=(127.5, 127.5, 127.5),
+            swapRB=True,
+        )
+        out = self.session.run(None, {self._input_name: blob})[0]
+        vec = out.flatten().astype(np.float64)
+        norm = np.linalg.norm(vec)
+        return vec / norm if norm > 0 else vec
 
     def crop_face(
         self,

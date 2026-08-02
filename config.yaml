@@ -10,7 +10,7 @@ processing:
 
 detection:
   yunet_model: "models/face_detection_yunet_2023mar.onnx"
-  sface_model: "models/face_recognition_sface_2021dec.onnx"
+  edgeface_model: "models/edgeface_xs_gamma_06.onnx"
   score_threshold: 0.8
   nms_threshold: 0.3
   # Tamano al que se re-escala el frame para detectar (mas chico = mas rapido)
@@ -19,9 +19,12 @@ detection:
 
 matching:
   # Similitud coseno minima para considerar que un rostro es una persona
-  # conocida. 0.363 es el umbral de referencia del modelo SFace de OpenCV.
-  # Subilo (ej 0.45-0.5) si te da falsos positivos, bajalo si no reconoce
-  # bien a la gente.
+  # conocida. A diferencia de SFace, EdgeFace no publica un umbral oficial de
+  # referencia, asi que 0.40 es un punto de partida (probado con fotos
+  # nitidas separa bien: personas distintas dieron <0.24, misma persona
+  # ~0.98). Con la camara real, sobre todo si las fotos salen chicas/borrosas,
+  # probablemente haya que ajustarlo mirando confianzas reales en los eventos
+  # -- subilo si te da falsos positivos, bajalo si no reconoce bien a la gente.
   known_threshold: 0.40
 
 pending:

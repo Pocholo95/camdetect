@@ -75,6 +75,22 @@ class Database:
             rows = con.execute("SELECT id, name, embedding FROM known_faces").fetchall()
         return [(r[0], r[1], blob_to_emb(r[2])) for r in rows]
 
+    def get_all_known_faces_full(self):
+        """[(id, name, crop_path), ...]. Para migrar embeddings a otro modelo."""
+        with self._conn() as con:
+            rows = con.execute("SELECT id, name, crop_path FROM known_faces").fetchall()
+        return rows
+
+    def update_known_embedding(self, known_id: int, embedding):
+        with self._conn() as con:
+            con.execute(
+                "UPDATE known_faces SET embedding=? WHERE id=?", (emb_to_blob(embedding), known_id)
+            )
+
+    def delete_known_faces(self, known_ids):
+        with self._conn() as con:
+            con.executemany("DELETE FROM known_faces WHERE id=?", [(i,) for i in known_ids])
+
     # ---------- pending_faces ----------
     def add_pending_face(self, embedding: np.ndarray, crop_path: str):
         with self._conn() as con:
@@ -90,6 +106,29 @@ class Database:
                 "SELECT embedding FROM pending_faces ORDER BY id DESC LIMIT ?", (limit,)
             ).fetchall()
         return [blob_to_emb(r[0]) for r in rows]
+
+    def get_all_pending_with_crops(self):
+        """[(id, crop_path), ...]. Para migrar embeddings a otro modelo."""
+        with self._conn() as con:
+            rows = con.execute("SELECT id, crop_path FROM pending_faces").fetchall()
+        return rows
+
+    def update_pending_embedding(self, pending_id: int, embedding):
+        with self._conn() as con:
+            con.execute(
+                "UPDATE pending_faces SET embedding=? WHERE id=?", (emb_to_blob(embedding), pending_id)
+            )
+
+    def reset_pending_clusters(self) -> int:
+        """Libera todos los pending_faces de su cluster_id y borra los
+        clusters 'pending' (quedaron agrupados con embeddings de otro
+        modelo, hay que re-clusterizar desde cero). Devuelve cuantos rostros
+        se liberaron."""
+        with self._conn() as con:
+            cur = con.execute("UPDATE pending_faces SET cluster_id=NULL WHERE cluster_id IS NOT NULL")
+            n = cur.rowcount
+            con.execute("DELETE FROM clusters WHERE status='pending'")
+        return n
 
     def get_unclustered_pending(self):
         with self._conn() as con:
