@@ -4,15 +4,45 @@
 <h1>Caras sin identificar</h1>
 <p style="color: var(--muted)">{{ clusters|length }} cluster(s) pendientes de revision.</p>
 
+{% if clusters %}
+<div class="card" style="position: sticky; top: 8px; z-index: 10;">
+  <div class="row">
+    <label style="margin: 0;"><input type="checkbox" id="selectAll"> Seleccionar todos</label>
+    <span id="selectedCount" style="color: var(--muted); font-size: 13px;">0 seleccionados</span>
+  </div>
+  <div class="row" style="margin-top: 10px;">
+    <select id="batchTargetPerson">
+      <option value="" disabled selected>Asignar seleccionados a...</option>
+      {% for p in known_people %}
+      <option value="{{ p.id }}">{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <button onclick="batchAssign()">Asignar</button>
+  </div>
+  <div class="row" style="margin-top: 10px;">
+    <input type="text" id="batchNewName" placeholder="Nombre para nueva persona">
+    <button onclick="batchCreate()">Crear persona con seleccionados</button>
+  </div>
+  <div class="row" style="margin-top: 10px;">
+    <button class="secondary" onclick="batchIgnore()">Ignorar seleccionados</button>
+    <button class="danger" onclick="batchDelete()">Borrar seleccionados</button>
+  </div>
+  <div id="batchResult" style="margin-top: 8px; font-size: 13px;"></div>
+</div>
+{% endif %}
+
 <div class="grid">
   {% for c in clusters %}
   <div class="card">
+    <label class="row" style="margin: 0 0 8px;">
+      <input type="checkbox" class="unknown-select" value="{{ c.cluster_id }}"> Seleccionar
+    </label>
     {% if c.face_crop %}
     <img src="{{ c.face_crop | media_url }}" alt="{{ c.name }}">
     {% endif %}
     <h2 style="margin-top: 8px;">{{ c.name }}</h2>
     <p style="color: var(--muted); font-size: 13px;">
-      Visto {{ c.n_sightings }} vez/veces &middot; ultima: {{ c.last_seen[:19] }}
+      Visto {{ c.n_sightings }} vez/veces &middot; ultima: {{ c.last_seen | local_time }}
     </p>
     {% if c.full_frame %}
     <p><a href="{{ c.full_frame | media_url }}" target="_blank" style="color: var(--accent); font-size: 13px;">Ver frame completo</a></p>
@@ -33,12 +63,89 @@
       <button type="submit">Crear persona</button>
     </form>
 
-    <form method="post" action="/unknowns/{{ c.cluster_id }}/ignore" style="margin-top: 8px;">
-      <button type="submit" class="secondary">Ignorar</button>
-    </form>
+    <div class="row" style="margin-top: 8px;">
+      <form method="post" action="/unknowns/{{ c.cluster_id }}/ignore">
+        <button type="submit" class="secondary">Ignorar</button>
+      </form>
+      <form method="post" action="/unknowns/{{ c.cluster_id }}/delete" onsubmit="return confirm('Borrar este cluster y sus fotos para siempre?');">
+        <button type="submit" class="danger">Borrar</button>
+      </form>
+    </div>
   </div>
   {% else %}
   <p style="color: var(--muted)">No hay desconocidos pendientes de revision.</p>
   {% endfor %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function selectedIds() {
+    return Array.from(document.querySelectorAll('.unknown-select:checked')).map(el => el.value);
+  }
+
+  function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = selectedIds().length + ' seleccionados';
+  }
+
+  document.querySelectorAll('.unknown-select').forEach(cb => {
+    cb.addEventListener('change', updateSelectedCount);
+  });
+
+  const selectAllEl = document.getElementById('selectAll');
+  if (selectAllEl) {
+    selectAllEl.addEventListener('change', (e) => {
+      document.querySelectorAll('.unknown-select').forEach(cb => cb.checked = e.target.checked);
+      updateSelectedCount();
+    });
+  }
+
+  async function postBatch(url, extra) {
+    const ids = selectedIds();
+    const resultEl = document.getElementById('batchResult');
+    if (ids.length === 0) {
+      resultEl.textContent = 'Selecciona al menos un cluster.';
+      resultEl.className = 'quality-bad';
+      return;
+    }
+    const form = new FormData();
+    ids.forEach(id => form.append('selected', id));
+    for (const key in extra) form.append(key, extra[key]);
+
+    const resp = await fetch(url, { method: 'POST', body: form });
+    if (resp.ok || resp.redirected) {
+      location.reload();
+    } else {
+      resultEl.textContent = 'Error al procesar la accion en lote.';
+      resultEl.className = 'quality-bad';
+    }
+  }
+
+  function batchAssign() {
+    const targetPersonId = document.getElementById('batchTargetPerson').value;
+    if (!targetPersonId) {
+      document.getElementById('batchResult').textContent = 'Elige a quien asignar.';
+      return;
+    }
+    postBatch('/unknowns/batch/assign', { target_person_id: targetPersonId });
+  }
+
+  function batchCreate() {
+    const name = document.getElementById('batchNewName').value.trim();
+    if (!name) {
+      document.getElementById('batchResult').textContent = 'Escribe un nombre para la nueva persona.';
+      return;
+    }
+    postBatch('/unknowns/batch/create', { name });
+  }
+
+  function batchIgnore() {
+    postBatch('/unknowns/batch/ignore', {});
+  }
+
+  function batchDelete() {
+    if (!confirm('Borrar los clusters seleccionados y sus fotos para siempre?')) return;
+    postBatch('/unknowns/batch/delete', {});
+  }
+</script>
 {% endblock %}
