@@ -53,7 +53,7 @@
       <td>{{ e.id }}</td>
       <td>{{ e.condition or '-' }}</td>
       <td>{{ e.source or '-' }}</td>
-      <td>{{ e.created_at[:19] }}</td>
+      <td>{{ e.created_at | local_time }}</td>
       <td>
         <form method="post" action="/embeddings/{{ e.id }}/delete" style="display:inline;">
           <input type="hidden" name="person_id" value="{{ person.id }}">
