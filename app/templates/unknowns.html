@@ -80,6 +80,14 @@
 
 {% block scripts %}
 <script>
+  // Defensa extra contra la restauracion de estado de formularios que hacen
+  // algunos navegadores al volver a esta pagina (back/forward, bfcache):
+  // siempre arrancamos con todo desmarcado.
+  document.querySelectorAll('.unknown-select').forEach(cb => cb.checked = false);
+  if (document.getElementById('selectAll')) {
+    document.getElementById('selectAll').checked = false;
+  }
+
   function selectedIds() {
     return Array.from(document.querySelectorAll('.unknown-select:checked')).map(el => el.value);
   }
@@ -100,6 +108,8 @@
     });
   }
 
+  updateSelectedCount();
+
   async function postBatch(url, extra) {
     const ids = selectedIds();
     const resultEl = document.getElementById('batchResult');
@@ -114,7 +124,10 @@
 
     const resp = await fetch(url, { method: 'POST', body: form });
     if (resp.ok || resp.redirected) {
-      location.reload();
+      // Navegacion fresca (no location.reload()): algunos navegadores
+      // restauran el estado de checkboxes al recargar la misma pagina,
+      // dejando marcadas las mismas filas que antes de la accion en lote.
+      window.location.assign(window.location.pathname);
     } else {
       resultEl.textContent = 'Error al procesar la accion en lote.';
       resultEl.className = 'quality-bad';

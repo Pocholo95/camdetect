@@ -90,8 +90,12 @@ class Notifier:
             await self._send_batch(conn, events)
 
     def _format_message(self, conn, events: list[NotificationEvent]) -> str:
-        now_local = datetime.now().strftime("%H:%M")
-        lines = [f"🏠 {now_local} — {len(events)} persona(s) detectada(s)", ""]
+        # Usar la hora real de deteccion (guardada al confirmar el track), no
+        # la hora de envio: el batching puede retrasar el mensaje BATCH_WINDOW_SEC.
+        earliest = min(events, key=lambda e: e.timestamp)
+        detected_local = datetime.fromisoformat(earliest.timestamp).astimezone()
+        detected_str = detected_local.strftime("%H:%M")
+        lines = [f"🏠 {detected_str} — {len(events)} persona(s) detectada(s)", ""]
         for e in events:
             if e.is_known:
                 lines.append(f"✅ {e.name} (confianza {e.score:.2f})")
