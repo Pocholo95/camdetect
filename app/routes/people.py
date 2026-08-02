@@ -48,7 +48,7 @@ async def person_detail(request: Request, person_id: int):
 
 
 @router.post("/people/{person_id}/notify")
-async def toggle_notify(person_id: int, notify: bool = Form(...)):
+async def toggle_notify(person_id: int, notify: bool = Form(False)):
     db.set_person_notify(state.conn, person_id, notify)
     return RedirectResponse(f"/people/{person_id}", status_code=303)
 
