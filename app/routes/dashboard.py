@@ -19,7 +19,7 @@ async def index(request: Request):
                 present.append({
                     "name": person["name"],
                     "is_known": bool(person["is_known"]),
-                    "last_seen": last_seen.strftime("%H:%M:%S"),
+                    "last_seen": last_seen,
                     "n_frames": n_frames,
                 })
 
