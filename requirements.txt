@@ -1,7 +1,0 @@
-opencv-contrib-python>=4.9.0.80
-numpy>=1.24
-scikit-learn>=1.3
-Flask>=3.0
-PyYAML>=6.0
-requests>=2.31
-onnxruntime>=1.16
